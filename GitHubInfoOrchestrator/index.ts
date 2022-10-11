@@ -12,15 +12,34 @@
 import * as df from "durable-functions";
 
 const orchestrator = df.orchestrator(function* (context) {
-  const userId: string = yield context.df.callActivity(
+  const firstRetryIntervalInMilliseconds: number = 1000;
+  const maxNumberOfAttempts: number = 3;
+  const maxRetryIntervalInMilliseconds: number = 1000;
+  const retryTimeoutInMilliseconds: number = 7000;
+
+  const retryConfig: df.RetryOptions = new df.RetryOptions(
+    firstRetryIntervalInMilliseconds,
+    maxNumberOfAttempts
+  );
+  retryConfig.maxRetryIntervalInMilliseconds = maxRetryIntervalInMilliseconds;
+  retryConfig.retryTimeoutInMilliseconds = retryTimeoutInMilliseconds;
+
+  // For demo purposes remove the raiseExecption flag after one failure
+  if (context.bindingData.context.isReplaying == true) {
+    context.bindingData.input.raiseException = false;
+  }
+
+  const userId: string = yield context.df.callActivityWithRetry(
     "GetRepositoryDetailsByName",
+    retryConfig,
     context.bindingData.input
   );
 
   context.bindingData.input.userId = userId;
 
-  const userInfos = yield context.df.callActivity(
+  const userInfos = yield context.df.callActivityWithRetry(
     "GetUserDetailsById",
+    retryConfig,
     context.bindingData.input
   );
 
